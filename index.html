@@ -315,7 +315,7 @@ body { font-family: 'Noto Sans KR', sans-serif; background: #f5f4f0; color: #1a1
       <div class="form-grid">
         <div class="form-item">
           <label>학교급</label>
-          <select id="school-select">
+          <select id="school-select" onchange="updatePublisherArea()">
             <option value="중학교">중학교</option>
             <option value="고등학교">고등학교</option>
             <option value="초등학교">초등학교</option>
@@ -337,6 +337,13 @@ body { font-family: 'Noto Sans KR', sans-serif; background: #f5f4f0; color: #1a1
           <label>세부 범위 (선택)</label>
           <input type="text" class="unit-input" id="detail-input" placeholder="예) 꼭짓점의 좌표와 축의 방정식, 기본권의 종류..." />
         </div>
+      </div>
+
+      <!-- 출판사 선택 영역 (국어/영어일 때만 표시) -->
+      <div id="publisher-area" style="display:none; margin-top:1rem;">
+        <div style="font-size:12px;color:#888;margin-bottom:8px;">출판사 <span style="color:#aaa;font-weight:400">(국어·영어만 해당 — 선택하면 해당 교과서 기준으로 출제)</span></div>
+        <div id="publisher-btns" style="display:flex;flex-wrap:wrap;gap:7px;"></div>
+        <div style="margin-top:8px;font-size:11px;color:#aaa;">※ 선택 안 하면 교육과정 기준으로 출제</div>
       </div>
 
       <div class="resource-box">
@@ -424,6 +431,52 @@ let currentSubject = '';
 let currentFormat  = '5지선다';
 let currentPreset  = 'balanced';
 let currentTitle   = '';
+let currentPublisher = ''; // 선택된 출판사
+
+const PUBLISHERS = {
+  korean:  ['미래엔','비상','천재','지학사','동아','금성','창비','신사고','해냄','교학사'],
+  english: ['YBM','NE능률','천재','미래엔','비상','지학사','동아','금성','신사고','교학사']
+};
+
+function updatePublisherArea() {
+  // 과목이 국어 또는 영어일 때만 출판사 영역 표시
+  showPublisherIfNeeded();
+}
+
+function showPublisherIfNeeded() {
+  const area = document.getElementById('publisher-area');
+  const btnsDiv = document.getElementById('publisher-btns');
+  const subj = currentSubject;
+
+  if(subj === 'korean' || subj === 'english') {
+    area.style.display = 'block';
+    const list = PUBLISHERS[subj];
+    btnsDiv.innerHTML = '';
+    currentPublisher = ''; // 과목 바뀌면 초기화
+    list.forEach(pub => {
+      const btn = document.createElement('button');
+      btn.className = 'btn-sm';
+      btn.textContent = pub;
+      btn.dataset.pub = pub;
+      btn.style.cssText = 'font-size:12px;padding:6px 12px;border-radius:20px;';
+      btn.onclick = () => selectPublisher(pub);
+      btnsDiv.appendChild(btn);
+    });
+  } else {
+    area.style.display = 'none';
+    currentPublisher = '';
+  }
+}
+
+function selectPublisher(pub) {
+  currentPublisher = (currentPublisher === pub) ? '' : pub; // 다시 누르면 해제
+  document.querySelectorAll('#publisher-btns button').forEach(b => {
+    const isActive = b.dataset.pub === currentPublisher;
+    b.style.background = isActive ? '#1a1a1a' : '#fff';
+    b.style.color = isActive ? '#fff' : '#333';
+    b.style.borderColor = isActive ? '#1a1a1a' : '#ddd';
+  });
+}
 
 const LEVEL_DEFAULTS = {
   math:    ['단일 개념 직접 적용, 정답률 95%+', '핵심 개념 응용, 정답률 80%+', '개념 2개 이상 조합, 풀이 3단계 이상, 오답률 60%+', '타 개념 연계, 풀이 3단계 이상, 오답률 50%+', '경시대회/창의/비정형, 정답률 10~50%'],
@@ -473,6 +526,7 @@ function showMsg(t, ok) {
 function selectSubject(s) {
   currentSubject = s;
   document.querySelectorAll('.subj-btn').forEach(b => b.classList.toggle('active', b.dataset.subj === s));
+  showPublisherIfNeeded();
 }
 
 function selectFormat(f) {
@@ -755,7 +809,7 @@ async function callAPI(prompt) {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 6000,
+      max_tokens: 4000,
       system: SYSTEM,
       messages: [{ role: 'user', content: prompt }]
     })
@@ -780,6 +834,7 @@ async function generateApp() {
   const outSec    = document.getElementById('app-output');
 
   currentTitle = `${school}_${grade}_${subjName}_${unit}`;
+  if(currentPublisher) currentTitle = `${school}_${grade}_${subjName}_${currentPublisher}_${unit}`;
 
   outSec.style.display = 'block';
   outSec.innerHTML = '';
@@ -791,7 +846,7 @@ async function generateApp() {
   appHeader.className = 'app-header';
   appHeader.innerHTML = `
     <div class="app-header-info">
-      <h2>${school} ${grade} ${subjName} — ${unit}</h2>
+      <h2>${school} ${grade} ${subjName}${currentPublisher ? ' · ' + currentPublisher : ''} — ${unit}</h2>
       <p>${detail ? detail + ' · ' : ''}${resource ? '📄 자료 기반 · ' : ''}${total}문항 · ${presetLabel} · 변형문제연구소 앱메이커</p>
     </div>
     <div class="app-actions">
@@ -825,6 +880,7 @@ async function generateApp() {
         : '';
 
       const prompt = `과목: ${school} ${grade} ${subjName}
+${currentPublisher ? `출판사: ${currentPublisher} 교과서 기준으로 출제` : ''}
 단원: ${unit}${detail ? ' > ' + detail : ''}
 난이도: ${meta.name} — ${document.getElementById('ld-'+li)?.value || ''}
 형식: ${currentFormat}
