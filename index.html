@@ -505,7 +505,7 @@ const SUBJECT_NAMES = {
 
 function saveKey() {
   const k = document.getElementById('api-key').value.trim();
-  if(!k.startsWith('sk-ant-')) { showMsg('API 키 형식 오류', false); return; }
+  if(!k || k.length < 10) { showMsg('API 키 형식 오류', false); return; }
   savedKey = k; showMsg('✓ API 키 저장 완료', true);
 }
 function clearKey() {
